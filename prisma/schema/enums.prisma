@@ -3,8 +3,6 @@ enum Role {
   ADMIN
   DOCTOR
   PATIENT
-  TESTER_ADMIN
-  TESTER_DOCTOR
 }
 
 enum UserStatus {
