@@ -352,11 +352,98 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
 };
 
 const forgotPassword = async (payload: IForgotPasswordPayload) => {
-  
+  const { email } = payload;
+
+  const isUserExists = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+  });
+
+  if (!isUserExists) {
+    throw new Error("User does not exist.");
+  }
+
+  if (isUserExists.status === "BLOCKED") {
+    throw new Error("User is blocked");
+  }
+
+  if (isUserExists.isDeleted || isUserExists.status === "DELETED") {
+    throw new Error("User is deleted.");
+  }
+
+  if (isUserExists.googleId || isUserExists.authProvider !== "CREDENTIAL") {
+    throw new Error("User has account with google.");
+  }
+
+  // main: Generate otp
+  // ------------------------------
+
+  const OTP = crypto.randomInt(100000, 1000000).toString();
+
+  // explain suffix , prefix stuff shortly
+  const key = `forgot-password-otp:${isUserExists.email}`;
+
+  await redisClient.set(key, OTP, {
+    expiration: {
+      type: "EX",
+      value: 5 * 60,
+    },
+  });
 };
 
 const resetPassword = async (payload: IResetPasswordPayload) => {
-  
+  const { email, otp, newPassword } = payload;
+
+  const isUserExists = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+  });
+
+  if (!isUserExists) {
+    throw new Error("User does not exist.");
+  }
+
+  if (isUserExists.status === "BLOCKED") {
+    throw new Error("User is blocked");
+  }
+
+  if (isUserExists.isDeleted || isUserExists.status === "DELETED") {
+    throw new Error("User is deleted.");
+  }
+
+  if (isUserExists.googleId || isUserExists.authProvider !== "CREDENTIAL") {
+    throw new Error("User has account with google.");
+  }
+
+  const key = `forgot-password-otp:${isUserExists.email}`;
+
+  const redisOTP = await redisClient.get(key);
+
+  if (!redisOTP) throw new Error("Invalid OTP");
+
+  // otp --> from param
+  if (redisOTP !== otp) {
+    throw new Error("OTP does not match.");
+  }
+
+  const hasedNewPassword = await bcrypt.hash(
+    newPassword,
+    Number(config.bcrypt_salt_rounds),
+  );
+
+  const updateUser = await prisma.user.update({
+    where: {
+      email: isUserExists.email,
+    },
+    data: {
+      password: hasedNewPassword,
+    },
+  });
+
+  // password changed, delete otp from cache
+  await redisClient.del([key]);
 };
 
 export const AuthService = {
