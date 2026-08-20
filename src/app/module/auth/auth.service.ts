@@ -390,6 +390,24 @@ const forgotPassword = async (payload: IForgotPasswordPayload) => {
       value: 5 * 60,
     },
   });
+
+  const temaplatepath = path.join(
+    process.cwd(),
+    "src/app/templates/forgot-password.ejs",
+  );
+
+  const html = await ejs.renderFile(temaplatepath, {
+    name: isUserExists.name,
+    otp: OTP,
+    expirationMinutes: 5,
+  });
+
+  await transporter.sendMail({
+    from: config.email_sender,
+    to: isUserExists.email,
+    subject: "Forgot password.",
+    html: html,
+  });
 };
 
 const resetPassword = async (payload: IResetPasswordPayload) => {
@@ -444,6 +462,13 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
 
   // password changed, delete otp from cache
   await redisClient.del([key]);
+
+  await transporter.sendMail({
+    from: config.email_sender,
+    to: isUserExists.email,
+    subject: "Forgot password.",
+    html: `<h1>Your password is changed</h1>`,
+  });
 };
 
 export const AuthService = {
