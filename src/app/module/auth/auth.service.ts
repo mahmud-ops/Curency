@@ -463,11 +463,21 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
   // password changed, delete otp from cache
   await redisClient.del([key]);
 
+  const temaplatepath = path.join(
+    process.cwd(),
+    "src/app/templates/reset-password-success.ejs",
+  );
+
+  const html = await ejs.renderFile(temaplatepath, {
+    name: isUserExists.name,
+  });
+
+  // send email 
   await transporter.sendMail({
     from: config.email_sender,
     to: isUserExists.email,
     subject: "Forgot password.",
-    html: `<h1>Your password is changed</h1>`,
+    html: html,
   });
 };
 
