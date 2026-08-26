@@ -40,8 +40,63 @@ const registerPatient = async (payload: IRegisterPatientPayload) => {
     throw new Error("User with this email already exists");
   }
 
-  const hashedPassword = await bcrypt.hash(password, 8);
+  const hashedPassword = await bcrypt.hash(
+    password,
+    Number(config.bcrypt_salt_rounds),
+  );
 
+  // store user cred and otp in redis for 5 min
+  // patient cred
+  const patientRegistrationKey = `patient-registration-data:${email}`;
+  const redisUserDataPayload = {
+    name,
+    email,
+    password: hashedPassword,
+    patient: patientData,
+  };
+
+  await redisClient.set(
+    patientRegistrationKey,
+    JSON.stringify(redisUserDataPayload),
+    {
+      expiration: {
+        type: "EX",
+        value: 5 * 60,
+      },
+    },
+  );
+
+  // otp
+  const otpKey = `patient-registration-otp:${email}`;
+  const OTP = crypto.randomInt(100000, 1000000).toString();
+  await redisClient.set(otpKey, OTP, {
+    expiration: {
+      type: "EX",
+      value: 5 * 60,
+    },
+  });
+
+  // send email
+  const temaplatepath = path.join(
+    process.cwd(),
+    "src/app/templates/register-user-otp.ejs",
+  );
+
+  const html = await ejs.renderFile(temaplatepath, {
+    name,
+    otp: OTP,
+    expirationMinutes: 5,
+  });
+
+  await transporter.sendMail({
+    from: config.email_sender,
+    to: email,
+    subject: "Email verification.",
+    html: html,
+  });
+
+  // ---
+  /*
   const createdUser = await prisma.user.create({
     data: {
       name,
@@ -81,13 +136,14 @@ const registerPatient = async (payload: IRegisterPatientPayload) => {
     config.jwt_refresh_secret,
     config.jwt_refresh_expires_in as SignOptions,
   );
-
+  
   return {
     user,
     patient,
     accessToken,
     refreshToken,
   };
+*/
 };
 
 const loginUser = async (payload: ILoginUserPayload) => {
@@ -472,7 +528,7 @@ const resetPassword = async (payload: IResetPasswordPayload) => {
     name: isUserExists.name,
   });
 
-  // send email 
+  // send email
   await transporter.sendMail({
     from: config.email_sender,
     to: isUserExists.email,
