@@ -8,7 +8,4 @@ Cloudinary.config({
   api_secret: config.cloudinary_api_secret,
 });
 
-// Log the configuration
-console.log(Cloudinary.config());
-
 export const cloudinary = Cloudinary

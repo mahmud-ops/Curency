@@ -13,6 +13,7 @@ import { globalErrorHandler } from "./app/middleware/globalErrorHandler";
 import { notFound } from "./app/middleware/notFound";
 import { AuthRoutes } from "./app/module/auth/auth.route";
 import { UserRouter } from "./app/module/user/user.route";
+import { getBkashIdToken } from "./app/lib/bkash";
 
 const app: Application = express();
 
@@ -35,13 +36,9 @@ app.use("/api/v1/user", UserRouter);
 
 app.get("/test", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const otp = crypto.randomInt(100000, 1000000);
-
-    res.status(httpStatus.OK).json({
-      success: true,
-      message: "Welcome to Curency backend",
-      data: otp,
-    });
+    const bkashGrantTokenData = await getBkashIdToken();
+    console.log(bkashGrantTokenData);
+    
   } catch (error) {
     console.log(error);
     next(error);
