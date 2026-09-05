@@ -2,27 +2,72 @@ import config from "../config";
 import { redisClient } from "./redis";
 
 export const getBkashIdToken = async () => {
-  const bkashIdTokenKey = "bkash:idToken";
-  const bkashRefreshTokenKey = "bkash:refreshToken";
+  try {
+    const bkashIdTokenKey = "bkash:idToken";
+    const bkashRefreshTokenKey = "bkash:refreshToken";
 
-  // before fetching from the api, check if we already have the tokens in redis
-  // if we have them, no need to fetch
-  let bkashIdToken = await redisClient.get(bkashIdTokenKey);
-  const bkashIdTokenTTL = await redisClient.ttl(bkashIdTokenKey);
+    // 1. Fetch cached tokens & TTLs from Redis
+    let bkashIdToken = await redisClient.get(bkashIdTokenKey);
+    const bkashIdTokenTTL = await redisClient.ttl(bkashIdTokenKey);
 
-  let bkashRefreshToken = await redisClient.get(bkashRefreshTokenKey);
+    const bkashRefreshToken = await redisClient.get(bkashRefreshTokenKey);
+    const bkashRefreshTokenTTL = await redisClient.ttl(bkashRefreshTokenKey);
 
-  if (bkashIdToken) return bkashIdToken;
+    // 2. If ID token is expired/missing BUT refresh token is valid (> 10 mins remaining), refresh it
+    if (
+      (bkashIdTokenTTL <= 600 || !bkashIdToken) &&
+      bkashRefreshToken &&
+      bkashRefreshTokenTTL > 600
+    ) {
+      const refreshTokenResponse = await fetch(
+        `${config.bkash_base_url}/tokenized/checkout/token/refresh`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            username: config.bkash_username,
+            password: config.bkash_password,
+          },
+          body: JSON.stringify({
+            app_key: config.bkash_app_key,
+            app_secret: config.bkash_app_secret,
+            refresh_token: bkashRefreshToken, // Included refresh_token
+          }),
+        },
+      );
 
-  // what if the id_token is expired but the refresh token is still in redis
-  // we'll get a new id_token by fetching from the refresh url provided in the doc
-  if (bkashIdTokenTTL <= 600 && bkashRefreshToken) {
-    const refreshTokenResponse = await fetch(
-      `${config.bkash_base_url}/tokenized/checkout/token/refresh`,
+      if (!refreshTokenResponse.ok) {
+        throw new Error("Bkash access token refresh failed");
+      }
+
+      const refreshTokenResult = await refreshTokenResponse.json();
+
+      bkashIdToken = refreshTokenResult.id_token as string;
+
+      await redisClient.set(bkashIdTokenKey, bkashIdToken, {
+        expiration: {
+          type: "EX",
+          value: 60 * 60, // 1 hour
+        },
+      });
+
+      return bkashIdToken;
+    }
+
+    // 3. If ID token is still valid (> 10 mins remaining), return cached token
+    if (bkashIdTokenTTL > 600 && bkashIdToken) {
+      return bkashIdToken;
+    }
+
+    // 4. Fallback: Request a brand-new token pair via Grant Token API
+    const response = await fetch(
+      `${config.bkash_base_url}/tokenized/checkout/token/grant`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
           username: config.bkash_username,
           password: config.bkash_password,
         },
@@ -33,49 +78,31 @@ export const getBkashIdToken = async () => {
       },
     );
 
-    const refreshTokenResult = await refreshTokenResponse.json();
+    if (!response.ok) {
+      throw new Error("Bkash access token grant failed");
+    }
 
-    bkashIdToken = refreshTokenResult.id_token as string; // there'll a new token in the response ( source: doc )
-    await redisClient.set(bkashIdTokenKey, bkashIdToken, {
+    const data = await response.json();
+
+    // Cache ID token (1 hour)
+    await redisClient.set(bkashIdTokenKey, data.id_token, {
       expiration: {
         type: "EX",
         value: 60 * 60,
       },
     });
-    return bkashIdToken;
-  }
 
-  const response = await fetch(
-    `${config.bkash_base_url}/tokenized/checkout/token/grant`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        username: config.bkash_username,
-        password: config.bkash_password,
+    // Cache Refresh token (28 days)
+    await redisClient.set(bkashRefreshTokenKey, data.refresh_token, {
+      expiration: {
+        type: "EX",
+        value: 28 * 24 * 60 * 60,
       },
-      body: JSON.stringify({
-        app_key: config.bkash_app_key,
-        app_secret: config.bkash_app_secret,
-      }),
-    },
-  );
+    });
 
-  const data = await response.json();
-
-  await redisClient.set(bkashIdTokenKey, data.id_token, {
-    expiration: {
-      type: "EX",
-      value: 60 * 60,
-    },
-  });
-
-  await redisClient.set(bkashRefreshTokenKey, data.refresh_token, {
-    expiration: {
-      type: "EX",
-      value: 28 * 24 * 60 * 60,
-    },
-  });
-
-  return data.id_token;
+    bkashIdToken = data.id_token;
+    return bkashIdToken;
+  } catch (error: any) {
+    throw new Error(error.message);
+  }
 };
