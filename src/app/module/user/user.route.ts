@@ -13,4 +13,4 @@ router.patch(
   userController.uploadProfileImage,
 );
 
-export const UserRouter = router;
+export const UserRoutes = router;
