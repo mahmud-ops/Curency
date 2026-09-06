@@ -16,6 +16,18 @@ const bookAppointment = catchAsync(
   },
 );
 
+const appointCallback = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    sendResponse(res, {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "This is the callback router",
+      data: null,
+    });
+  },
+);
+
 export const AppointmentControlller = {
   bookAppointment,
+  appointCallback,
 };
