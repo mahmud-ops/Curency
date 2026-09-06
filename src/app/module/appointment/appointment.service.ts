@@ -64,7 +64,7 @@ const bookAppointmentCallback = async (query: Record<string, any>) => {
       "x-app-key": config.bkash_app_key,
     },
     body: JSON.stringify({
-      paymentID: "TR0001VK1565072365492",
+      paymentID: paymentId, // from the query
     }),
   };
 
@@ -72,7 +72,32 @@ const bookAppointmentCallback = async (query: Record<string, any>) => {
     const response = await fetch(url, options);
     const executeBkashPayment = await response.json();
 
-    return executeBkashPayment;
+    if (status === "success") {
+      return {
+        executeBkashPayment,
+        redirectUrl: `${config.frontend_url}/dashboard/my-appointments?status=success`,
+      };
+    }
+    
+    if (status === "failure") {
+      return {
+        executeBkashPayment,
+        redirectUrl: `${config.frontend_url}/dashboard/my-appointments?status=failure`,
+      };
+    }
+
+    if (status === "cancel") {
+      return {
+        executeBkashPayment,
+        redirectUrl: `${config.frontend_url}/dashboard/my-appointments?status=cancel`,
+      };
+    }
+
+    return {
+      executeBkashPayment,
+      redirectUrl: `${config.frontend_url}/dashboard/my-appointments`,
+    };
+
   } catch (error) {
     console.error("bKash Payment Execution Error:", error);
     throw error;
@@ -81,4 +106,5 @@ const bookAppointmentCallback = async (query: Record<string, any>) => {
 
 export const AppointmentService = {
   bookAppointment,
+  bookAppointmentCallback,
 };
