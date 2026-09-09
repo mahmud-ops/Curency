@@ -6,7 +6,10 @@ import { AppointmentService } from "./appointment.service";
 
 const bookAppointment = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const result = await AppointmentService.bookAppointment();
+    const payload = req.body;
+    const user = req.user!;
+
+    const result = await AppointmentService.bookAppointment(payload, user);
     sendResponse(res, {
       success: true,
       statusCode: httpStatus.OK,
