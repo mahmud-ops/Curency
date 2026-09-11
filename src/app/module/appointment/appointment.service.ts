@@ -289,7 +289,11 @@ const cancelAppointment = async (payload: any, user: RequestUser) => {
     throw new Error("Appointment is already cancelled");
   }
 
-  // Refund flow (code from doc: https://developer.bka.sh/docs/refund-transaction-4)
+  // Ensure payment details exist
+  const payment = existingAppointment.payment;
+  if (!payment || !payment.bkashPaymentId || !payment.bkashTrxId) {
+    throw new Error("No completed transaction found for this appointment to refund.");
+  }
 
   // 1. Obtain bKash Token
   const bkashIdToken = await getBkashIdToken();
@@ -300,15 +304,15 @@ const cancelAppointment = async (payload: any, user: RequestUser) => {
 
   // 2. Prepare bKash refund payload
   const bkashRefundPayload = {
-    paymentId: existingAppointment.payment?.bkashPaymentId,
-    trxId: existingAppointment.payment?.bkashTrxId,
-    refundAmount: existingAppointment.payment?.amount?.toString(),
+    paymentID: payment.bkashPaymentId,
+    trxID: payment.bkashTrxId,
+    amount: payment.amount?.toString(),
     sku: "appointment",
     reason: "Appointment cancelled",
   };
 
   // 3. Prepare bKash refund API URL
-  const url = `${config.bkash_base_url}/v2/tokenized-checkout/refund/payment/transaction`;
+  const url = `${config.bkash_base_url}/tokenized/checkout/payment/refund`;
 
   const options = {
     method: "POST",
@@ -326,17 +330,27 @@ const cancelAppointment = async (payload: any, user: RequestUser) => {
     const response = await fetch(url, options);
     const refundResponse = await response.json();
 
+    console.log("bKash Refund Response Payload:", refundResponse);
+
     // 5. Check if bKash returned an error
-    if (!response.ok) {
-      throw new Error(
-        refundResponse.errorMessageEn || "bKash refund request failed",
-      );
+    if (
+      refundResponse.statusCode &&
+      refundResponse.statusCode !== "0000"
+    ) {
+      const errorMsg =
+        refundResponse.statusMessage ||
+        refundResponse.errorMessage ||
+        refundResponse.errorMessageEn ||
+        `bKash refund failed with code ${refundResponse.statusCode}`;
+      
+      throw new Error(errorMsg);
     }
 
-    // 6. Check the actual refund transaction status
-    if (refundResponse.refundTransactionStatus !== "Completed") {
+    // 6. Check refund transaction status (handles both transactionStatus and refundTransactionStatus)
+    const status = refundResponse.transactionStatus || refundResponse.refundTransactionStatus;
+    if (status !== "Completed") {
       throw new Error(
-        `bKash refund failed with status: ${refundResponse.refundTransactionStatus}`,
+        `bKash refund pending/failed with status: ${status || "Unknown"}`,
       );
     }
 
@@ -357,10 +371,10 @@ const cancelAppointment = async (payload: any, user: RequestUser) => {
         },
         data: {
           gatewayResponse: refundResponse,
-          refundTrxId: refundResponse.refundTrxId,
+          refundTrxId: refundResponse.refundTrxID,
           refundedAt: refundResponse.completedTime,
-          refundAmount: refundResponse.refundAmount,
-          refundReason: refundResponse.reason,
+          refundAmount: refundResponse.amount,
+          refundReason: bkashRefundPayload.reason,
           status: PaymentStatus.REFUNDED,
         },
       });
