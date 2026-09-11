@@ -94,46 +94,62 @@ export const seedTesterAdmin = async () => {
 };
 
 export const seedTesterDoctor = async () => {
-  try {
-    const isTesterDoctorExist = await prisma.user.findFirst({
-      where: {
-        email: config.tester_doctor_email as string,
-      },
-    });
+	try {
+		const isTesterDoctorExist = await prisma.user.findUnique({
+			where: {
+				email: config.tester_doctor_email,
+			},
+		});
 
-    if (isTesterDoctorExist) {
-      console.log("Tester doctor already exists");
-      return;
-    }
+		if (isTesterDoctorExist) {
+			console.log("Tester Doctor Already Exists!");
+			return;
+		}
 
-    const name = config.tester_doctor_name as string;
-    const email = config.tester_doctor_email as string;
-    const password = config.tester_doctor_password as string;
+		const name = config.tester_doctor_name;
+		const email = config.tester_doctor_email;
+		const password = config.tester_admin_password;
 
-    if (!name || !email || !password) {
-      throw new Error(
-        "Tester doctor name / email / password is missing in .env file",
-      );
-    }
+		if (!name || !email || !password) {
+			throw new Error(
+				"Tester Doctor Name , Email, Password Missing In Env File!!!",
+			);
+		}
 
-    const hashedPassword = await bcrypt.hash(
-      password,
-      Number(config.bcrypt_salt_rounds),
-    );
+		const hashedPassword = await bcrypt.hash(
+			password,
+			Number(config.bcrypt_salt_rounds),
+		);
 
-    const testerDoctor = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role: Role.DOCTOR,
-        needPasswordChange: false,
-        emailVerified: true,
-      },
-    });
+		const testerDoctor = await prisma.user.create({
+			data: {
+				name,
+				email,
+				password: hashedPassword,
+				role: Role.DOCTOR,
+				needPasswordChange: false,
+				emailVerified: true,
+				doctor: {
+					create: {
+						email,
+						name,
+						experienceYears: 5,
+						licenseNumber: "BMDC0000",
+						qualifications: "MBBS",
+						specialization: "Neurology",
+					},
+				},
+			},
+		});
 
-    console.log("Tester doctor created", testerDoctor);
-  } catch (error) {
-    console.log("Error seeding tester doctor: ", error);
-  }
+		console.log("Tester Doctor Created : ", testerDoctor);
+	} catch (error) {
+		console.log("Error Seeding Tester Doctor : ", error);
+
+		await prisma.user.delete({
+			where: {
+				email: config.tester_doctor_email,
+			},
+		});
+	}
 };
