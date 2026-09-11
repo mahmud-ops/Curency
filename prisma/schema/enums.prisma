@@ -28,6 +28,7 @@ enum AppointmentStatus {
   CANCELLED
   ONGOING
   REFUNDED
+  COMPLETED
 }
 
 enum PaymentStatus {
