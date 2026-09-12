@@ -3,12 +3,14 @@ import { prisma } from "../../lib/prisma";
 import { cloudinary } from "../../lib/cloudinary";
 import { create } from "node:domain";
 import bcrypt from "bcryptjs";
+import { Role } from "../../../generated/prisma/enums";
 
 const applyAsDoctor = async (
   payload: any,
   resume: Express.Multer.File | null,
   additionalFiles: Express.Multer.File[],
 ) => {
+  console.log(payload.user.email);
   const isUserExist = await prisma.doctor.findUnique({
     where: {
       email: payload.user.email,
@@ -67,6 +69,8 @@ const applyAsDoctor = async (
     data: {
       ...payload.user,
       password: hashedPassword,
+      role: Role.DOCTOR,
+      needPasswordChange: true,
       doctor: {
         create: {
           name: payload.user.name,
