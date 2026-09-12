@@ -1,9 +1,14 @@
 import { UploadApiResponse } from "cloudinary";
 import { prisma } from "../../lib/prisma";
 import { cloudinary } from "../../lib/cloudinary";
-import { create } from "node:domain";
 import bcrypt from "bcryptjs";
 import { Role } from "../../../generated/prisma/enums";
+import crypto from "crypto";
+import { redisClient } from "../../lib/redis";
+import path from "path";
+import ejs from "ejs";
+import { transporter } from "../../lib/nodemailer";
+import config from "../../config";
 
 const applyAsDoctor = async (
   payload: any,
@@ -90,7 +95,36 @@ const applyAsDoctor = async (
     },
   });
 
-  
+  // Store otp in redis and the send the otp via email -- start
+  const expirationSeconds = 60 * 60;
+  const otpKey = `doctorapplication:otp:${payload.user.email}`;
+
+  const otpValue = crypto.randomInt(100000, 1000000).toString();
+  await redisClient.set(otpKey, otpValue, {
+    expiration: {
+      type: "EX",
+      value: expirationSeconds,
+    },
+  });
+
+  const temaplatepath = path.join(
+    process.cwd(),
+    "src/app/templates/register-user-otp.ejs",
+  );
+
+  const html = await ejs.renderFile(temaplatepath, {
+    name,
+    otp: otpValue,
+    expirationMinutes: expirationSeconds / 60,
+  });
+
+  await transporter.sendMail({
+    from: config.email_sender,
+    to: payload.user.email,
+    subject: "Email verification.",
+    html: html,
+  });
+  // Store otp in redis and the send the otp via email -- end
 
   return doctorApplication;
 };
