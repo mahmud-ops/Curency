@@ -9,9 +9,10 @@ import path from "path";
 import ejs from "ejs";
 import { transporter } from "../../lib/nodemailer";
 import config from "../../config";
+import { IApplyAsDoctorPayload } from "./doctor.interface";
 
 const applyAsDoctor = async (
-  payload: any,
+  payload: IApplyAsDoctorPayload,
   resume: Express.Multer.File | null,
   additionalFiles: Express.Multer.File[],
 ) => {
