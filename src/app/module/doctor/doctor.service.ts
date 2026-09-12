@@ -85,7 +85,12 @@ const applyAsDoctor = async (
         },
       },
     },
+    include: {
+      doctor: true,
+    },
   });
+
+  
 
   return doctorApplication;
 };
