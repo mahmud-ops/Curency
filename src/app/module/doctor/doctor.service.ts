@@ -129,6 +129,9 @@ const applyAsDoctor = async (
   return doctorApplication;
 };
 
+const verifyDoctorEmail = async () => {};
+
 export const DoctorService = {
   applyAsDoctor,
+  verifyDoctorEmail
 };
