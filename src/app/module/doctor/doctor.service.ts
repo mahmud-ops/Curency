@@ -9,7 +9,10 @@ import path from "path";
 import ejs from "ejs";
 import { transporter } from "../../lib/nodemailer";
 import config from "../../config";
-import { IApplyAsDoctorPayload } from "./doctor.interface";
+import {
+  IApplyAsDoctorPayload,
+  IVerifyDoctorEmailPayload,
+} from "./doctor.interface";
 
 const applyAsDoctor = async (
   payload: IApplyAsDoctorPayload,
@@ -98,7 +101,7 @@ const applyAsDoctor = async (
 
   // Store otp in redis and the send the otp via email -- start
   const expirationSeconds = 60 * 60;
-  const otpKey = `doctorapplication:otp:${payload.user.email}`;
+  const otpKey = `doctor-application-otp:${payload.user.email}`;
 
   const otpValue = crypto.randomInt(100000, 1000000).toString();
   await redisClient.set(otpKey, otpValue, {
@@ -130,9 +133,49 @@ const applyAsDoctor = async (
   return doctorApplication;
 };
 
-const verifyDoctorEmail = async () => {};
+const verifyDoctorEmail = async (payload: IVerifyDoctorEmailPayload) => {
+  const otp = payload.otp;
+  const email = payload.email.trim().toLowerCase();
+
+  const existingUser = await prisma.user.findUnique({
+    where: { email, role: Role.DOCTOR },
+  });
+
+  if (!existingUser) {
+    throw new Error("Doctor Application Not Found. Please Apply Again.");
+  }
+
+  if (existingUser.emailVerified) {
+    throw new Error("Email Already Verified");
+  }
+
+  const otpKey = `doctor-application-otp:${email}`;
+
+  const redisOtp = await redisClient.get(otpKey);
+
+  if (!redisOtp) {
+    throw new Error(
+      "OTP Expired. Your Application Window Has Closed, Please Apply Again.",
+    );
+  }
+
+  if (redisOtp !== otp) {
+    throw new Error("OTP Does Not Match");
+  }
+
+  await redisClient.del(otpKey);
+
+  const verifiedUser = await prisma.user.update({
+    where: { id: existingUser.id },
+    data: { emailVerified: true },
+    omit: { password: true },
+    include: { doctor: true },
+  });
+
+  return verifiedUser;
+};
 
 export const DoctorService = {
   applyAsDoctor,
-  verifyDoctorEmail
+  verifyDoctorEmail,
 };
