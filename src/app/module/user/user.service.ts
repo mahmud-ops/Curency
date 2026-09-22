@@ -1,6 +1,7 @@
 import { UploadApiResponse } from "cloudinary";
 import { cloudinary } from "../../lib/cloudinary";
 import { prisma } from "../../lib/prisma";
+import { AppError } from "../../utils/AppError";
 
 const uploadProfileImage = async (buffer: Buffer, userId: string) => {
   // Get existing image
@@ -21,7 +22,7 @@ const uploadProfileImage = async (buffer: Buffer, userId: string) => {
         }
 
         if (!result) {
-          reject(new Error("Cloudinary upload failed"));
+            reject(new AppError(400, "Cloudinary upload failed"));
           return;
         }
 

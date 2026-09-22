@@ -5,6 +5,7 @@ import { sendResponse } from "../../utils/sendResponse";
 import type { IRequestUser } from "./auth.interface";
 import { AuthService } from "./auth.service";
 import { UserValidation } from "./auth.validation";
+import { AppError } from "../../utils/AppError";
 
 const registerPatient = catchAsync(async (req: Request, res: Response) => {
   const payload = req.body;
@@ -83,7 +84,7 @@ const getMe = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as unknown as IRequestUser;
 
   if (!user) {
-    throw new Error("User information is missing in the request");
+    throw new AppError(401, "User information is missing in the request");
   }
 
   const result = await AuthService.getMe(user);
@@ -97,7 +98,7 @@ const getMe = catchAsync(async (req: Request, res: Response) => {
 
 const refreshToken = catchAsync(async (req: Request, res: Response) => {
   if (!req.cookies.refreshToken) {
-    throw new Error("Refresh token is missing");
+    throw new AppError(401, "Refresh token is missing");
   }
   const result = await AuthService.refreshToken(req.cookies.refreshToken);
   const { accessToken, refreshToken: newRefreshToken } = result;

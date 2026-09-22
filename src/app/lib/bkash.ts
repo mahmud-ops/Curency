@@ -1,5 +1,6 @@
 import config from "../config";
 import { redisClient } from "./redis";
+import { AppError } from "../utils/AppError";
 
 export const getBkashIdToken = async () => {
   try {
@@ -38,7 +39,7 @@ export const getBkashIdToken = async () => {
       );
 
       if (!refreshTokenResponse.ok) {
-        throw new Error("Bkash access token refresh failed");
+        throw new AppError(400, "Bkash access token refresh failed");
       }
 
       const refreshTokenResult = await refreshTokenResponse.json();
@@ -79,7 +80,7 @@ export const getBkashIdToken = async () => {
     );
 
     if (!response.ok) {
-      throw new Error("Bkash access token grant failed");
+      throw new AppError(400, "Bkash access token grant failed");
     }
 
     const data = await response.json();
@@ -103,6 +104,6 @@ export const getBkashIdToken = async () => {
     bkashIdToken = data.id_token;
     return bkashIdToken;
   } catch (error: any) {
-    throw new Error(error.message);
+    throw new AppError(400, error.message);
   }
 };

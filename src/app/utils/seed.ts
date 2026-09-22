@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { Role } from "../../generated/prisma/enums";
 import { prisma } from "../lib/prisma";
 import config from "../config";
+import { AppError } from "./AppError";
 
 export const seedSuperAdmin = async () => {
   try {
@@ -21,7 +22,8 @@ export const seedSuperAdmin = async () => {
     const password = config.super_admin_password as string;
 
     if (!name || !email || !password) {
-      throw new Error(
+      throw new AppError(
+        500,
         "Super admin name / email / password is missing in .env file",
       );
     }
@@ -66,7 +68,8 @@ export const seedTesterAdmin = async () => {
     const password = config.tester_admin_password as string;
 
     if (!name || !email || !password) {
-      throw new Error(
+      throw new AppError(
+        500,
         "Tester admin name / email / password is missing in .env file",
       );
     }
@@ -111,7 +114,8 @@ export const seedTesterDoctor = async () => {
 		const password = config.tester_admin_password;
 
 		if (!name || !email || !password) {
-			throw new Error(
+			throw new AppError(
+				500,
 				"Tester Doctor Name , Email, Password Missing In Env File!!!",
 			);
 		}

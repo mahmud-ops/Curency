@@ -6,6 +6,7 @@ import config from "../../config";
 import { getBkashIdToken } from "../../lib/bkash";
 import { prisma } from "../../lib/prisma";
 import { RequestUser } from "../../middleware/checkAuth";
+import { AppError } from "../../utils/AppError";
 
 const bookAppointment = async (
   bookingData: any /*payload*/,
@@ -22,7 +23,7 @@ const bookAppointment = async (
 
     // 2. Obtain bKash Token
     const bkashIdToken = await getBkashIdToken();
-    if (!bkashIdToken) throw new Error("No bkash access token found !");
+    if (!bkashIdToken) throw new AppError(400, "No bkash access token found !");
 
     // 3. Prepare bKash payload (renamed variable to avoid parameter collision)
     const bkashPayload = {
@@ -57,7 +58,8 @@ const bookAppointment = async (
         createBkashPayment.statusCode &&
         createBkashPayment.statusCode !== "0000"
       ) {
-        throw new Error(
+        throw new AppError(
+          502,
           createBkashPayment.statusMessage || "bKash Payment creation failed",
         );
       }
@@ -86,14 +88,14 @@ const bookAppointmentCallback = async (query: Record<string, any>) => {
     const paymentId = query.paymentID;
     const status = query.status;
 
-    if (!paymentId) throw new Error("Payment id not found");
-    if (!status) throw new Error("Payment status not found");
+    if (!paymentId) throw new AppError(400, "Payment id not found");
+    if (!status) throw new AppError(400, "Payment status not found");
 
     // execute payment
     const url = `${config.bkash_base_url}/tokenized/checkout/execute`;
     const bkashIdToken = await getBkashIdToken();
 
-    if (!bkashIdToken) throw new Error("No bkash access token found !");
+    if (!bkashIdToken) throw new AppError(400, "No bkash access token found !");
 
     const options = {
       method: "POST",
@@ -188,19 +190,19 @@ const payAppointment = async (payload: any, user: RequestUser) => {
     },
   });
 
-  if (!existingAppointment) throw new Error("Appointment does not exist");
+  if (!existingAppointment) throw new AppError(404, "Appointment does not exist");
   if (existingAppointment.status === "CONFIRMED")
-    throw new Error("Appointment is already confirmed");
+    throw new AppError(409, "Appointment is already confirmed");
   if (
     existingAppointment.status === "CANCELLED" ||
     existingAppointment.status === "ONGOING" ||
     existingAppointment.status === "COMPLETED"
   )
-    throw new Error(`Appointment is ${existingAppointment.status.toLowerCase}`);
+    throw new AppError(409, `Appointment is ${existingAppointment.status.toLowerCase()}`);
 
   // 1. Obtain bKash Token
   const bkashIdToken = await getBkashIdToken();
-  if (!bkashIdToken) throw new Error("No bkash access token found !");
+  if (!bkashIdToken) throw new AppError(400, "No bkash access token found !");
 
   // 2. Prepare bKash payload
   const bkashPayload = {
@@ -236,7 +238,8 @@ const payAppointment = async (payload: any, user: RequestUser) => {
       createBkashPayment.statusCode &&
       createBkashPayment.statusCode !== "0000"
     ) {
-      throw new Error(
+      throw new AppError(
+        502,
         createBkashPayment.statusMessage || "bKash Payment creation failed",
       );
     }
@@ -273,33 +276,34 @@ const cancelAppointment = async (payload: any, user: RequestUser) => {
   });
 
   if (!existingAppointment) {
-    throw new Error("Appointment does not exist");
+    throw new AppError(404, "Appointment does not exist");
   }
 
   if (
     existingAppointment.status === "COMPLETED" ||
     existingAppointment.status === "ONGOING"
   ) {
-    throw new Error(
+    throw new AppError(
+      409,
       `Appointment is ${existingAppointment.status.toLowerCase()}`,
     );
   }
 
   if (existingAppointment.status === "CANCELLED") {
-    throw new Error("Appointment is already cancelled");
+    throw new AppError(409, "Appointment is already cancelled");
   }
 
   // Ensure payment details exist
   const payment = existingAppointment.payment;
   if (!payment || !payment.bkashPaymentId || !payment.bkashTrxId) {
-    throw new Error("No completed transaction found for this appointment to refund.");
+    throw new AppError(400, "No completed transaction found for this appointment to refund.");
   }
 
   // 1. Obtain bKash Token
   const bkashIdToken = await getBkashIdToken();
 
   if (!bkashIdToken) {
-    throw new Error("No bkash access token found!");
+    throw new AppError(400, "No bkash access token found!");
   }
 
   // 2. Prepare bKash refund payload
@@ -343,13 +347,17 @@ const cancelAppointment = async (payload: any, user: RequestUser) => {
         refundResponse.errorMessageEn ||
         `bKash refund failed with code ${refundResponse.statusCode}`;
       
-      throw new Error(errorMsg);
+      throw new AppError(
+        502,
+        errorMsg,
+      );
     }
 
     // 6. Check refund transaction status (handles both transactionStatus and refundTransactionStatus)
     const status = refundResponse.transactionStatus || refundResponse.refundTransactionStatus;
     if (status !== "Completed") {
-      throw new Error(
+      throw new AppError(
+        502,
         `bKash refund pending/failed with status: ${status || "Unknown"}`,
       );
     }
