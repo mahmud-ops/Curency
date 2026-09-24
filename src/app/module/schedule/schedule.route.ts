@@ -51,4 +51,6 @@ router.delete(
     ScheduleController.deleteSchedule,
 );
 
+router.get("/todays-schedule", ScheduleController.getTodaysSchedules);
+
 export const ScheduleRoutes = router;
