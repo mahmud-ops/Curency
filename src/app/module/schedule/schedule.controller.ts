@@ -7,18 +7,57 @@ import { CreateScheduleValidationZodSchema } from "./schedule.validation";
 import { AppError } from "../../utils/AppError";
 
 const createSchedule = catchAsync(async (req: Request, res: Response) => {
-    const payload = req.body;
-    const user = req.user!;
+  const payload = req.body;
+  const user = req.user!;
 
-    const result = await scheduleService.createSchedule(payload, user);
-    sendResponse(res, {
-        statusCode: httpStatus.CREATED,
-        success: true,
-        message: "Schedule Created Successfully",
-        data: result,
-    });
+  const result = await scheduleService.createSchedule(payload, user);
+  sendResponse(res, {
+    statusCode: httpStatus.CREATED,
+    success: true,
+    message: "Schedule Created Successfully",
+    data: result,
+  });
+});
+
+const getMySchedules = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user!;
+
+  const { data, meta } = await scheduleService.getMySchedule(req.query, user);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Schedules Retrieved Successfully",
+    data,
+    meta,
+  });
+});
+
+const getAllSchedules = catchAsync(async (req: Request, res: Response) => {
+  const { data, meta } = await scheduleService.getAllSchedules(req.query);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Schedules Retrieved Successfully",
+    data,
+    meta,
+  });
+});
+
+const getScheduleById = catchAsync(async (req: Request, res: Response) => {
+  const scheduleId = req.params.scheduleId as string;
+
+  const result = await scheduleService.getScheduleById(scheduleId);
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: "Schedule Retrieved Successfully",
+    data: result,
+  });
 });
 
 export const ScheduleController = {
   createSchedule,
+  getMySchedules,
+  getAllSchedules,
+  getScheduleById,
 };
