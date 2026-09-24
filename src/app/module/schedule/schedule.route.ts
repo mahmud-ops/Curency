@@ -3,7 +3,7 @@ import { ScheduleController } from "./schedule.controller";
 import { auth } from "../../middleware/checkAuth";
 import { Role } from "../../../generated/prisma/enums";
 import { validateRequest } from "../../middleware/validateRequest";
-import { CreateScheduleValidationZodSchema } from "./schedule.validation";
+import { CreateScheduleValidationZodSchema, UpdateScheduleValidationZodSchema } from "./schedule.validation";
 
 const router = Router();
 
@@ -30,6 +30,25 @@ router.get(
   "/:scheduleId",
   auth(Role.DOCTOR, Role.ADMIN, Role.SUPER_ADMIN),
   ScheduleController.getScheduleById,
+);
+
+router.patch(
+    "/update-schedule/:scheduleId",
+    auth(Role.DOCTOR),
+    validateRequest(UpdateScheduleValidationZodSchema),
+    ScheduleController.updateSchedule,
+);
+
+router.patch(
+    "/publish-schedule/:scheduleId",
+    auth(Role.DOCTOR),
+    ScheduleController.publishSchedule,
+);
+
+router.delete(
+    "/:scheduleId",
+    auth(Role.DOCTOR),
+    ScheduleController.deleteSchedule,
 );
 
 export const ScheduleRoutes = router;
