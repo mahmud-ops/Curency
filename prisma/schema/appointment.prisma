@@ -1,4 +1,4 @@
-model Apppointment {
+model Appointment {
   id String @id @default(uuid())
 
   status       AppointmentStatus @default(PENDING)
